@@ -29,62 +29,48 @@ pub fn part_one(input: &str) -> Option<u64> {
 pub fn part_two(input: &str) -> Option<u64> {
     let (mut ranges, _) = parse(input);
 
-    loop {
-        let mut modified = false;
+    let mut solutions = Vec::<RangeInclusive<u64>>::with_capacity(ranges.len());
 
-        ranges = ranges
-            .iter()
-            .cloned()
-            .enumerate()
-            .flat_map(|(i, mut range)| {
-                for prev in ranges.iter().take(i) {
-                    match (prev.contains(range.start()), prev.contains(range.end())) {
-                        (true, true) => {
-                            modified = true;
-                            return [None, None];
-                        }
-                        (true, false) => {
-                            range = *prev.end() + 1..=*range.end();
-                            modified = true;
-                        }
-                        (false, true) => {
-                            range = *range.start()..=*prev.start() - 1;
-                            modified = true;
-                        }
-                        (false, false)
-                            if range.start() < prev.start() && range.end() > prev.end() =>
-                        {
-                            modified = true;
-                            return [
-                                Some(*range.start()..=*prev.start() - 1),
-                                Some(*prev.end() + 1..=*range.end()),
-                            ];
-                        }
-                        (false, false) => continue,
-                    }
+    let mut i = 0;
+    'outer: while i < ranges.len() {
+        let range = ranges[i].clone();
+
+        for prev in &solutions {
+            match (prev.contains(range.start()), prev.contains(range.end())) {
+                (true, true) => {
+                    // This range is already fulfilled by a solution, so skip it.
+                    i += 1;
+                    continue 'outer;
                 }
-
-                assert!(range.start() <= range.end());
-
-                [Some(range), None]
-            })
-            .flatten()
-            .collect();
-
-        if !modified {
-            break;
+                (true, false) => {
+                    // Update this range to not overlap an existing solution, then retry.
+                    ranges[i] = *prev.end() + 1..=*range.end();
+                    continue 'outer;
+                }
+                (false, true) => {
+                    // Update this range to not overlap an existing solution, then retry.
+                    ranges[i] = *range.start()..=*prev.start() - 1;
+                    continue 'outer;
+                }
+                (false, false) if range.start() < prev.start() && range.end() > prev.end() => {
+                    // Split this range into two, to straddle an existing solution. Use one to
+                    // replace the current range, and append the other to be searched later.
+                    ranges[i] = *range.start()..=*prev.start() - 1;
+                    ranges.push(*prev.end() + 1..=*range.end());
+                    continue 'outer;
+                }
+                // No overlap against solution range, continue searching.
+                (false, false) => continue,
+            }
         }
+
+        // If reached here, this range has no overlap with an existing solution. Save it, then
+        // continue onto the next range.
+        solutions.push(range);
+        i += 1;
     }
 
-    Some(
-        ranges
-            .into_iter()
-            .inspect(|r| {
-                dbg!(r);
-            })
-            .flatten()
-            .count() as u64,
-    )
+    Some(solutions.into_iter().flatten().count() as u64)
 }
 
 #[cfg(test)]
