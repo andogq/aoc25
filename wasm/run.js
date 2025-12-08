@@ -26,5 +26,5 @@ const wasmModule = await WebAssembly.instantiate(proc.stdout, {
 });
 const instance = wasmModule.instance;
 
-const { part1 } = instance.exports;
-console.log({ part1: part1() });
+const { part1, part2 } = instance.exports;
+console.log({ part1: part1(), part2: part2() });

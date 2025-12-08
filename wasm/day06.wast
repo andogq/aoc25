@@ -96,8 +96,8 @@
         (call $log_i64 (local.get $num))
         (local.get $num))
 
-    ;; Parse a number left to right.
-    (func $parse_left (param $start i32) (result i32)
+    ;; Parse a number.
+    (func $parse (param $start i32) (param $step i32) (result i32)
         (local $result i32)
         (local $i i32)
         (local $current_digit i32)
@@ -123,13 +123,13 @@
                         (local.get $current_digit)))
 
                 ;; Increment the counter and continue looping.
-                (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                (local.set $i (i32.add (local.get $i) (local.get $step)))
                 (br $step)))
 
         (local.get $result))
 
-    ;; Starting at the provided offset, advance until non-whitespace is encountered, and return the new offset. If the end-of-line is encountered, `-1` will be returned.
-    (func $skip_whitespace (param $offset i32) (result i32)
+    ;; Starting at the provided offset, advance until non-whitespace is encountered, and return the new offset.
+    (func $skip_whitespace (param $offset i32) (param $step i32) (result i32)
         (local $i i32)
         (local $byte i32)
         
@@ -142,21 +142,17 @@
 
                 ;; Check if it's b'\n'.
                 (i32.eq (local.get $byte) (i32.const 0x0a))
-                (if (then
-                    ;; End of line reached, indicate with -1.
-                    (local.set $i (i32.const -1))
-                    (br $done)))
-
                 ;; Check if it's b' '.
                 (i32.eq (local.get $byte) (i32.const 0x20))
+
+                (i32.or)
                 (if (then
                     ;; Increment counter.
-                    (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                    (local.set $i (i32.add (local.get $i) (local.get $step)))
                     (br $step)))))
 
         (local.get $i))
 
-    ;; Part 1 solution.
     (func $part1 (result i64)
         (local $answer i64)
 
@@ -227,11 +223,11 @@
                     (local.get $column_i))
 
                 ;; Skip any starting whitespace
-                (call $skip_whitespace)
+                (call $skip_whitespace (i32.const 1))
 
                 ;; Parse number.
                 (local.set $current_num
-                    (i64.extend_i32_u (call $parse_left)))
+                    (i64.extend_i32_u (call $parse (i32.const 1))))
 
                 (local.set $column_total
                     (if (result i64)
@@ -243,8 +239,7 @@
                             (local.get $current_num)))
                         (else (i64.add
                             (local.get $column_total)
-                            (local.get $current_num)))
-                    ))
+                            (local.get $current_num)))))
 
                 (local.tee $row_i
                     (i32.add
@@ -266,20 +261,140 @@
             (i32.add (i32.const 1))
 
             ;; Advance until next non-whitespace.
-            (call $skip_whitespace)
+            (call $skip_whitespace (i32.const 1))
 
-            ;; Save the new offset (includes offset to signs).
+            ;; Save the new offset.
+            (i32.sub (local.get $signs_offset))
             (local.tee $column_i)
-
-            (if (i32.ne (i32.const -1))
-                (then
-                    ;; Update to remove offset to signs.
-                    (local.set $column_i
-                        (i32.sub
-                            (local.get $column_i)
-                            (local.get $signs_offset)))
-                    (br $column_loop))))
+            (i32.lt_u (local.get $line_length))
+            (br_if $column_loop))
 
         (local.get $answer))
 
-    (export "part1" (func $part1)))
+    ;; Part 2 solution.
+    (func $part2 (result i64)
+        (local $answer i64)
+
+        (local $line_length i32)
+        (local $line_count i32)
+        (local $signs_offset i32)
+        (local $row_count i32)
+
+        (local $row_i i32)
+        (local $column_i i32)
+        (local $column_sign i32)
+        (local $column_total i64)
+        (local $column_width i32)
+        (local $current_num i64)
+
+        (local.set $answer (i64.const 0))
+
+        ;; Find the line length (add 1 to account for new line).
+        (local.set $line_length
+            (i32.add
+                (call $find_offset (i32.const 0) (i32.const 0x0a))
+                (i32.const 1)))
+
+        ;; Calculate the number of lines in the file.
+        (local.set $line_count
+            (i32.div_u
+                (call $file_length)
+                (local.get $line_length)))
+
+        (local.set $row_count
+            (i32.sub
+                (local.get $line_count)
+                (i32.const 1)))
+
+        ;; Calculate offset to signs.
+        (local.set $signs_offset
+            (i32.mul
+                (local.get $line_length)
+                (local.get $row_count)))
+
+        (local.set $column_i (i32.const 0))
+        (loop $column_loop
+            ;; Extract the sign
+            (local.set $column_sign
+                (call $read_byte
+                    (i32.add
+                        (local.get $signs_offset)
+                        (local.get $column_i))))
+
+            ;; Calculate the index just after the sign.
+            (i32.add
+                (i32.const 1)
+                (i32.add
+                    (local.get $column_i)
+                    (local.get $signs_offset)))
+
+            (local.set $column_width
+                (i32.sub
+                    (i32.sub
+                        (call $skip_whitespace (i32.const 1))
+                        (local.get $signs_offset))
+                        (local.get $column_i)))
+
+            ;; Reset the column count.
+            (local.set $column_total
+                (if 
+                    (result i64)
+                    (i32.eq
+                        (local.get $column_sign)
+                        (i32.const 0x2a)) ;; b'*'
+                    (then (i64.const 1))
+                    (else (i64.const 0))))
+
+            ;; Reset row counter
+            (local.set $row_i (i32.const 0))
+            (loop $row_loop
+                ;; Calculate starting offset.
+                (i32.add
+                    (local.get $row_i)
+                    (local.get $column_i))
+
+                ;; Skip any starting whitespace
+                (call $skip_whitespace (local.get $line_length))
+
+                ;; Parse number.
+                (local.set $current_num
+                    (i64.extend_i32_u (call $parse (local.get $line_length))))
+
+                (local.set $column_total
+                    (if (result i64)
+                        (i32.eq
+                            (local.get $column_sign)
+                            (i32.const 0x2a)) ;; b'*'
+                        (then (i64.mul
+                            (local.get $column_total)
+                            (local.get $current_num)))
+                        (else (i64.add
+                            (local.get $column_total)
+                            (local.get $current_num)))))
+
+                (local.tee $row_i
+                    (i32.add
+                        (local.get $row_i)
+                        (i32.const 1)))
+                (i32.lt_u (i32.sub (local.get $column_width) (i32.const 1)))
+                (br_if $row_loop))
+
+            ;; Update the answer.
+            (local.set $answer
+                (i64.add
+                    (local.get $answer)
+                    (local.get $column_total)))
+
+            ;; Save the new offset.
+            (local.tee $column_i
+                (i32.add
+                    (local.get $column_i)
+                    (local.get $column_width)))
+
+            (i32.lt_u (local.get $line_length))
+            (br_if $column_loop))
+
+        (local.get $answer))
+
+    (export "part1" (func $part1))
+    (export "part2" (func $part2)))
