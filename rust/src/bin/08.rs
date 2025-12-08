@@ -13,45 +13,30 @@ pub fn part_one(input: &str) -> Option<u64> {
         })
         .collect::<Vec<_>>();
 
-    let mut distances = vec![vec![None; boxes.len()]; boxes.len()];
-
-    for a in 0..boxes.len() {
-        for b in 0..boxes.len() {
-            if a == b {
-                continue;
-            }
-
-            let (ax, ay, az) = &boxes[a];
-            let (bx, by, bz) = &boxes[b];
-
-            let distance = (usize::pow(ax.abs_diff(*bx), 2)
-                + usize::pow(ay.abs_diff(*by), 2)
-                + usize::pow(az.abs_diff(*bz), 2))
-            .isqrt();
-
-            distances[a][b] = Some(distance);
-            distances[b][a] = Some(distance);
-        }
-    }
-
-    let mut circuits: Vec<Vec<usize>> = vec![];
-
     // Changes between example and input.
-    let amount = if distances.len() == 20 { 10 } else { 1000 };
+    let amount = if boxes.len() == 20 { 10 } else { 1000 };
 
-    for _ in 0..amount {
-        let Some(((a, b), _)) = (0..boxes.len())
-            .flat_map(|a| (0..boxes.len()).map(move |b| (a, b)))
-            .flat_map(|(a, b)| Some(((a, b), distances[a][b]?)))
-            .min_by_key(|(_, distance)| *distance)
-        else {
-            break;
-        };
+    let mut circuits: Vec<_> = (0..boxes.len()).map(|i| vec![i]).collect();
 
-        // Ensure distances are cleared.
-        distances[a][b] = None;
-        distances[b][a] = None;
+    {
+        let mut distances = (0..boxes.len())
+            .flat_map(|a| (a + 1..boxes.len()).map(move |b| (a, b)))
+            .map(|(a, b)| {
+                ((a, b), {
+                    let (ax, ay, az) = &boxes[a];
+                    let (bx, by, bz) = &boxes[b];
 
+                    (usize::pow(ax.abs_diff(*bx), 2)
+                        + usize::pow(ay.abs_diff(*by), 2)
+                        + usize::pow(az.abs_diff(*bz), 2))
+                    .isqrt()
+                })
+            })
+            .collect::<Vec<_>>();
+        distances.sort_unstable_by_key(|(_, distance)| *distance);
+        distances.into_iter().take(amount)
+    }
+    .for_each(|((a, b), _)| {
         let a_circuit = circuits
             .iter()
             .enumerate()
@@ -68,6 +53,7 @@ pub fn part_one(input: &str) -> Option<u64> {
             (Some(a), Some(b)) => {
                 let circuit = std::mem::take(&mut circuits[b]);
                 circuits[a].extend(circuit);
+                circuits.remove(b);
             }
             (Some(a_circuit), None) => {
                 circuits[a_circuit].push(b);
@@ -75,9 +61,9 @@ pub fn part_one(input: &str) -> Option<u64> {
             (None, Some(b_circuit)) => {
                 circuits[b_circuit].push(a);
             }
-            (None, None) => circuits.push(vec![a, b]),
+            (None, None) => unreachable!(),
         }
-    }
+    });
 
     let mut lens = circuits.iter().map(|c| c.len()).collect::<Vec<_>>();
     lens.sort_unstable();
@@ -102,42 +88,28 @@ pub fn part_two(input: &str) -> Option<u64> {
         })
         .collect::<Vec<_>>();
 
-    let mut distances = vec![vec![None; boxes.len()]; boxes.len()];
-
-    for a in 0..boxes.len() {
-        for b in 0..boxes.len() {
-            if a == b {
-                continue;
-            }
-
-            let (ax, ay, az) = &boxes[a];
-            let (bx, by, bz) = &boxes[b];
-
-            let distance = (usize::pow(ax.abs_diff(*bx), 2)
-                + usize::pow(ay.abs_diff(*by), 2)
-                + usize::pow(az.abs_diff(*bz), 2))
-            .isqrt();
-
-            distances[a][b] = Some(distance);
-            distances[b][a] = Some(distance);
-        }
-    }
-
     let mut circuits: Vec<_> = (0..boxes.len()).map(|i| vec![i]).collect();
 
-    for _ in 0.. {
-        let Some(((a, b), _)) = (0..boxes.len())
-            .flat_map(|a| (0..boxes.len()).map(move |b| (a, b)))
-            .flat_map(|(a, b)| Some(((a, b), distances[a][b]?)))
-            .min_by_key(|(_, distance)| *distance)
-        else {
-            break;
-        };
+    let distances = {
+        let mut distances = (0..boxes.len())
+            .flat_map(|a| (a + 1..boxes.len()).map(move |b| (a, b)))
+            .map(|(a, b)| {
+                ((a, b), {
+                    let (ax, ay, az) = &boxes[a];
+                    let (bx, by, bz) = &boxes[b];
 
-        // Ensure distances are cleared.
-        distances[a][b] = None;
-        distances[b][a] = None;
+                    (usize::pow(ax.abs_diff(*bx), 2)
+                        + usize::pow(ay.abs_diff(*by), 2)
+                        + usize::pow(az.abs_diff(*bz), 2))
+                    .isqrt()
+                })
+            })
+            .collect::<Vec<_>>();
+        distances.sort_unstable_by_key(|(_, distance)| *distance);
+        distances.into_iter()
+    };
 
+    for ((a, b), _) in distances {
         let a_circuit = circuits
             .iter()
             .enumerate()
