@@ -1,6 +1,7 @@
 {- HLINT ignore "Move filter" -}
 import Data.List (sort)
 import Debug.Trace (trace)
+import Distribution.Utils.Generic (fstOf3)
 
 main :: IO ()
 main = interact $ \input -> show (part1 input, part2 input)
@@ -37,7 +38,7 @@ part1 =
                             else
                               [i]
                       )
-                    $ filter (\(beam, _, _) -> beam)
+                    $ filter fstOf3
                     $ zip3 beams is_splitters [0 ..],
                   count + length (filter (uncurry (&&)) $ zip beams is_splitters)
                 )
